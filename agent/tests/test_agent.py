@@ -1,3 +1,4 @@
+import asyncio
 from pathlib import Path
 import pytest
 from relaydesk_agent.actions.files import MoveFileAction, RenameFileAction
@@ -13,31 +14,27 @@ def test_extension_condition_is_case_insensitive(tmp_path):
     path=tmp_path/"file.PDF"; path.write_text("x")
     assert ConditionEvaluator().evaluate("file_extension", {"operator":"equals", "value":".pdf"}, context(path))
 
-@pytest.mark.asyncio
-async def test_move_file(tmp_path):
+def test_move_file(tmp_path):
     source=tmp_path/"a.txt"; destination=tmp_path/"out"; destination.mkdir(); source.write_text("hello")
-    result=await MoveFileAction().execute(context(source), {"destination":str(destination)})
+    result=asyncio.run(MoveFileAction().execute(context(source), {"destination":str(destination)}))
     assert Path(result["file"]["path"]) == destination/"a.txt" and not source.exists()
 
-@pytest.mark.asyncio
-async def test_rename_file(tmp_path):
+def test_rename_file(tmp_path):
     source=tmp_path/"a.txt"; source.write_text("hello")
-    result=await RenameFileAction().execute(context(source), {"name":"b.pdf"})
+    result=asyncio.run(RenameFileAction().execute(context(source), {"name":"b.pdf"}))
     assert Path(result["file"]["path"]).name == "b.pdf" and result["file"]["extension"] == ".pdf"
 
-@pytest.mark.asyncio
-async def test_execution_order_updates_context(tmp_path):
+def test_execution_order_updates_context(tmp_path):
     source=tmp_path/"a.txt"; out=tmp_path/"out"; out.mkdir(); source.write_text("x")
     automation=Automation(id="1", name="test", trigger={"type":"file_created","config":{"path":str(tmp_path)}}, actions=[{"type":"move_file","position":2,"config":{"destination":str(out)}},{"type":"rename_file","position":1,"config":{"name":"renamed.txt"}}])
-    assert await AutomationEngine().execute(automation, context(source))
+    assert asyncio.run(AutomationEngine().execute(automation, context(source)))
     assert (out/"renamed.txt").exists()
 
-@pytest.mark.asyncio
-async def test_failed_action_is_reported_and_does_not_raise(tmp_path):
+def test_failed_action_is_reported_and_does_not_raise(tmp_path):
     source=tmp_path/"a"; source.write_text("x"); reports=[]
     async def report(status, payload): reports.append((status,payload))
     automation=Automation(id="1",name="x",trigger={"type":"file_created","config":{"path":str(tmp_path)}},actions=[{"type":"move_file","config":{"destination":str(tmp_path/"missing")}}])
-    assert not await AutomationEngine(report).execute(automation, context(source))
+    assert not asyncio.run(AutomationEngine(report).execute(automation, context(source)))
     assert reports[-1][0] == "failed" and "does not exist" in reports[-1][1]["error"]
 
 def test_path_validation_rejects_relative_and_traversal(tmp_path):
@@ -47,3 +44,22 @@ def test_path_validation_rejects_relative_and_traversal(tmp_path):
 def test_event_deduplication():
     dedupe=EventDeduplicator(ttl=5)
     assert dedupe.accept("a", 10) and not dedupe.accept("a", 11) and dedupe.accept("a", 16)
+
+def test_pdf_event_moves_file_between_temporary_folders(tmp_path):
+    watch = tmp_path / "watch"
+    destination = tmp_path / "destination"
+    watch.mkdir()
+    destination.mkdir()
+    pdf = watch / "test.pdf"
+    pdf.write_bytes(b"%PDF-1.4\nlocal integration test")
+    automation = Automation(
+        id="pdf-organizer",
+        name="Organize PDFs",
+        trigger={"type": "file_created", "config": {"path": str(watch)}},
+        conditions=[{"type": "file_extension", "config": {"operator": "equals", "value": ".pdf"}}],
+        actions=[{"type": "move_file", "config": {"destination": str(destination)}}],
+    )
+
+    assert asyncio.run(AutomationEngine().execute(automation, context(pdf)))
+    assert not pdf.exists()
+    assert (destination / "test.pdf").read_bytes().startswith(b"%PDF")
