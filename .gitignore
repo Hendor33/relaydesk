@@ -8,6 +8,5 @@ __pycache__/
 .venv/
 dist/
 *.egg-info/
-*.tsbuildinfo
 .coverage
 agent.log
