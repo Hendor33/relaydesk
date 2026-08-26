@@ -1,0 +1,1 @@
+-- Intentionally empty: create users through Supabase Auth so profile triggers and RLS are exercised.

@@ -1,0 +1,1 @@
+{"name":"relaydesk","private":true,"workspaces":["apps/web"],"scripts":{"dev":"npm run dev -w @relaydesk/web","build":"npm run build -w @relaydesk/web","lint":"npm run lint -w @relaydesk/web","typecheck":"npm run typecheck -w @relaydesk/web"}}
