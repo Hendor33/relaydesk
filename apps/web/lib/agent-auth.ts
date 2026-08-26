@@ -1,0 +1,3 @@
+import { createHash } from "crypto"; import { NextRequest } from "next/server"; import { adminClient } from "./supabase";
+export const hash=(value:string)=>createHash("sha256").update(value).digest("hex");
+export async function authenticateAgent(request:NextRequest){const id=request.headers.get("x-device-id"); const auth=request.headers.get("authorization"); if(!id||!auth?.startsWith("Bearer "))return null; const {data}=await adminClient().from("devices").select("id,user_id,credential_hash").eq("id",id).maybeSingle(); return data&&data.credential_hash===hash(auth.slice(7))?data:null;}
