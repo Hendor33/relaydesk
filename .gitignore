@@ -1,0 +1,13 @@
+node_modules/
+.next/
+.env
+.env.local
+*.py[cod]
+__pycache__/
+.pytest_cache/
+.venv/
+dist/
+*.egg-info/
+*.tsbuildinfo
+.coverage
+agent.log
